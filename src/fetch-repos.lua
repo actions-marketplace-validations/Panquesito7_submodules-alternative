@@ -17,57 +17,71 @@
 -- Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 --
 
+--[[
+    Arguments
+    [1]: Repositories filename (e.g. `repos`).
+    [2]: Whether to squash all the commits or not.
+    [3]: Commit message that's being used. Only if the squash commits option is enabled.
+--]]
+
+if os.getenv("GITHUB_ACTION_PATH") ~= nil then
+    package.path = os.getenv("GITHUB_ACTION_PATH") .. "/src/?.lua;" .. package.path
+end
+
 local data = require(arg[1])
 local repos = data.repos
-local check_variables = require("check-variables").check_variables
+local helper_functions = require("helper-functions")
+
+-- Squash commits option.
+local squash_commits
+if arg[2] ~= nil then
+    squash_commits = arg[2]
+else
+    squash_commits = "false"
+end
 
 --- @brief Clones all the repositories with the given options.
 --- Submodules will be cloned depending on the desired setting.
 --- This script can be ran multiple times without any issues.
 --- @return nil
 local function clone_repos()
-    local branch = ""
+    local branch
     for i = 1, #repos do
         -- Make sure all of the variables are set.
-        check_variables(repos, i)
+        helper_functions.check_variables(repos[i])
 
         -- Create the given directory if it does not exist.
         os.execute("mkdir -p " .. repos[i].dir)
 
         -- Make sure the repository is not cloned already.
-        if os.execute("test -d " .. repos[i].dir .. repos[i].name) then
+        local command = ((helper_functions.is_on_windows() == false and "test -d " .. repos[i].dir .. repos[i].name)
+        or "if exist ") .. repos[i].dir .. repos[i].name .. " (exit 1) else (exit 0)"
+
+        if os.execute(command) then
             print("Warning: " .. repos[i].dir .. repos[i].name .. " already exists. Skipping.")
             goto continue
         end
 
-        -- Include only the repository owner and name (e.g.: panqkart/panqkart).
-        local owner, repo = repos[i].url:match("https://github.com/(.-)/(.-)$")
+        -- Get the default branch.
+        branch = helper_functions.get_def_branch(repos[i]) or ""
 
-        -- Remove `.git` from `repo`.
-        repo = repo:gsub(".git", "")
-
-        -- Obtain the default branch name from the given URL by fetching the GitHub API.
-        local handle = io.popen("wget -q -O - \"\"https://api.github.com/repos/" .. owner .. "/" .. repo .. "\"\" | jq -r '.default_branch'")
-        if handle then
-            branch = handle:read("*a")
-            handle:close()
-        else
-            print("Error: Could not obtain the default branch name from the given URL.")
-            os.exit(1)
+        if branch == nil then
+            goto continue
         end
 
-        -- Remove endline from `branch`. This is causing the subtree command not to squash everything.
-        branch = branch:gsub("\n", "")
+        os.execute("git remote add -f " .. repos[i].name .. " " .. repos[i].url)
+        os.execute("git read-tree --prefix " .. repos[i].dir .. repos[i].name .. " -u " .. repos[i].name .. "/" .. branch)
+        os.execute("git remote remove " .. repos[i].name)
 
-        -- Use `git subtree` to avoid the repo being converted to a submodule.
-        os.execute("git subtree add --prefix " .. repos[i].dir .. repos[i].name .. " " .. repos[i].url .. " " .. branch .. " --squash")
-
-        -- Change the commit message to include the repository name, only, if the commit was successful.
-        if os.execute("test -d " .. repos[i].dir .. repos[i].name) then
-            os.execute("git commit --amend -m \"Add " .. repos[i].name .. " repository\"")
+        if squash_commits == "false" then
+            os.execute("git commit -m 'Add " .. repos[i].name .. "'")
         end
 
         ::continue::
+    end
+
+    if squash_commits == "true" then
+        os.execute("git commit -m '" .. arg[3] .. "'")
     end
 end
 

@@ -4,14 +4,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: Panquesito7/submodules-alternative@v1
+      - uses: ./
         with:
-          repos_filename: repos-test
+          repos_filename: repos-test.lua
           use_pr: true
           branch_name: submodule-update
           add_repos: true
           update_repos: true
-          squash_commits: true
+          squash_commits: false
+          one_pr: false

@@ -1,5 +1,9 @@
 -- USED FOR TESTING PURPOSES ONLY.
 
+local config = {
+    labels_update = "dependencies,enhancement",
+}
+
 local repos = {
     {
         name = "Minetest-WorldEdit",
@@ -15,9 +19,16 @@ local repos = {
         name = "cloud_items",
         url = "https://github.com/minetest-mods/cloud_items",
         dir = "libs/"
+    },
+    {
+        name = "mobs_redo",
+        url = "https://notabug.org/TenPlus1/mobs_redo",
+        dir = "libs/",
+        def_branch = "master"
     }
 }
 
 return {
-    repos = repos
+    repos = repos,
+    config = config
 }
